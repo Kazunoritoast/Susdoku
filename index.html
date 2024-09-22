@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Susdoku</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #282c34;
+            color: white;
+        }
+        #sudoku-container {
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            grid-template-rows: repeat(9, 50px);
+            gap: 2px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid black;
+            background-color: #3a3f47;
+            color: white;
+        }
+        .cell input {
+            width: 90%;
+            height: 90%;
+            text-align: center;
+            font-size: 18px;
+            border: none;
+            background-color: #3a3f47;
+            color: white;
+        }
+        .cell input:focus {
+            outline: 2px solid blue;
+        }
+        /* Thicker borders for 3x3 boxes */
+        .thick-border-top { border-top: 3px solid white; }
+        .thick-border-left { border-left: 3px solid white; }
+        .thick-border-right { border-right: 3px solid white; }
+        .thick-border-bottom { border-bottom: 3px solid white; }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        button, select {
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            color: white;
+            background-color: #ff4d00;
+            border: none;
+            border-radius: 5px;
+        }
+        #message {
+            font-size: 18px;
+            margin-top: 10px;
+        }
+        /* Emergency Meeting button styles */
+        #emergency-btn {
+            background-color: red;
+        }
+
+        .impostor {
+            background-color: red;
+            transition: background-color 0.5s;
+        }
+
+        .crewmate {
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Susdoku: Who's the Impostor?</h1>
+
+    <div id="sudoku-container"></div>
+
+    <div id="controls">
+        <select id="difficulty-select">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button id="retry-btn">Retry</button>
+        <button id="check-btn">Check Solution</button>
+        <button id="emergency-btn">Emergency Meeting!</button>
+        <p id="message"></p>
+    </div>
+
+    <script>
+        const sudokuContainer = document.getElementById('sudoku-container');
+        const messageElement = document.getElementById('message');
+        const retryButton = document.getElementById('retry-btn');
+        const emergencyButton = document.getElementById('emergency-btn');
+        const difficultySelect = document.getElementById('difficulty-select');
+        let difficulty = 'normal'; // default difficulty
+        let impostorCells = [];
+
+        const solution = [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 7, 9]
+        ];
+
+        // Helper function to generate random clues based on difficulty
+        function getClueChance() {
+            if (difficulty === 'easy') return 0.65;
+            if (difficulty === 'normal') return 0.5;
+            if (difficulty === 'hard') return 0.35;
+        }
+
+        // Create the Sudoku grid with impostor cells and crewmates
+        function createGrid() {
+            sudokuContainer.innerHTML = ''; // Clear previous grid
+            impostorCells = []; // Reset impostors
+
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = 1;
+                    input.max = 9;
+
+                    // Thicker borders for 3x3 grid boxes
+                    if (row % 3 === 0) cell.classList.add('thick-border-top');
+                    if (col % 3 === 0) cell.classList.add('thick-border-left');
+                    if (row === 8) cell.classList.add('thick-border-bottom');
+                    if (col === 8) cell.classList.add('thick-border-right');
+
+                    // Populate some cells as clues based on difficulty
+                    if (Math.random() < getClueChance()) {
+                        input.value = solution[row][col];
+                        input.disabled = true;
+                        cell.classList.add('crewmate'); // Mark as crewmate
+                    } else {
+                        // Impostor chance
+                        if (Math.random() < 0.1) {
+                            impostorCells.push({ cell, row, col, input });
+                        }
+                    }
+
+                    cell.appendChild(input);
+                    sudokuContainer.appendChild(cell);
+                }
+            }
+
+            // Start sabotaging after a short delay
+            setTimeout(() => {
+                startImpostorSabotage();
+            }, 5000);
+        }
+
+        // Check if the user's input matches the solution
+        function checkSolution() {
+            let isCorrect = true;
+            const inputs = document.querySelectorAll('.cell input');
+
+            inputs.forEach((input, index) => {
+                const row = Math.floor(index / 9);
+                const col = index % 9;
+
+                if (input.value != solution[row][col]) {
+                    isCorrect = false;
+                }
+            });
+
+            if (isCorrect) {
+                messageElement.textContent = 'Congratulations! You caught all the impostors!';
+                messageElement.style.color = 'green';
+            } else {
+                messageElement.textContent = 'Incorrect solution. Some impostors are still among us!';
+                messageElement.style.color = 'red';
+            }
+        }
+
+        // Retry and re-generate a new grid
+        function retry() {
+            createGrid();
+            messageElement.textContent = '';
+        }
+
+        // Start impostor sabotage
+        function startImpostorSabotage() {
+            impostorCells.forEach(({ cell, row, col, input }) => {
+                input.value = Math.floor(Math.random() * 9) + 1; // Change to random number
+                cell.classList.add('impostor');
+            });
+        }
+
+        // Emergency Meeting: Reveal impostor cells for a short time
+        emergencyButton.addEventListener('click', () => {
+            impostorCells.forEach(({ cell }) => {
+                cell.style.backgroundColor = 'yellow'; // Highlight impostors
+            });
+
+            // Reset back after a few seconds
+            setTimeout(() => {
+                impostorCells.forEach(({ cell }) => {
+                    cell.style.backgroundColor = 'red'; // Reset impostor color
+                });
+            }, 2000);
+        });
+
+        // Handle difficulty change
+        difficultySelect.addEventListener('change', (event) => {
+            difficulty = event.target.value;
+            retry();
+        });
+
+        document.getElementById('check-btn').addEventListener('click', checkSolution);
+        retryButton.addEventListener('click', retry);
+
+        // Initialize the grid
+        createGrid();
+    </script>
+</body>
+</html>
